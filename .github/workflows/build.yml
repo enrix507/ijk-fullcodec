@@ -11,7 +11,7 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y git wget unzip yasm nasm pkg-config build-essential python3
 
-      - name: Download NDK r17c (last with gcc + make-standalone-toolchain)
+      - name: Download NDK r17c
         run: |
           cd $HOME
           wget -q https://dl.google.com/android/repository/android-ndk-r17c-linux-x86_64.zip
@@ -23,34 +23,33 @@ jobs:
       - name: Clone ijkplayer k0.8.8
         run: git clone --depth 1 --branch k0.8.8 https://github.com/bilibili/ijkplayer.git ijk
 
-      - name: init-android (fetch FFmpeg n3.4 etc.)
+      - name: init-android
         run: |
           cd ijk
           ./init-android.sh
 
-      - name: Patch module for full audio codecs (MP1/MP2/AC3/EAC3/DTS)
+      - name: Patch module for full audio codecs
         run: |
           cd ijk/config
-          cat >> module-lite.sh <<'EOF'
-
-# --- CINE TV: full audio codecs ---
-export COMMON_FF_CFG_FLAGS="$COMMON_FF_CFG_FLAGS --enable-decoder=mp1 --enable-decoder=mp1float"
-export COMMON_FF_CFG_FLAGS="$COMMON_FF_CFG_FLAGS --enable-decoder=mp2 --enable-decoder=mp2float"
-export COMMON_FF_CFG_FLAGS="$COMMON_FF_CFG_FLAGS --enable-decoder=ac3 --enable-decoder=ac3_fixed --enable-decoder=eac3"
-export COMMON_FF_CFG_FLAGS="$COMMON_FF_CFG_FLAGS --enable-decoder=dca"
-export COMMON_FF_CFG_FLAGS="$COMMON_FF_CFG_FLAGS --enable-decoder=pcm_s16be --enable-decoder=pcm_s24be"
-export COMMON_FF_CFG_FLAGS="$COMMON_FF_CFG_FLAGS --enable-parser=mpegaudio --enable-parser=ac3 --enable-parser=dca"
-export COMMON_FF_CFG_FLAGS="$COMMON_FF_CFG_FLAGS --enable-demuxer=ac3 --enable-demuxer=eac3 --enable-demuxer=dts"
-EOF
+          echo '' >> module-lite.sh
+          echo '# CINE TV: full audio codecs (MP1/MP2/AC3/EAC3/DTS)' >> module-lite.sh
+          echo 'export COMMON_FF_CFG_FLAGS="$COMMON_FF_CFG_FLAGS --enable-decoder=mp1 --enable-decoder=mp1float"' >> module-lite.sh
+          echo 'export COMMON_FF_CFG_FLAGS="$COMMON_FF_CFG_FLAGS --enable-decoder=mp2 --enable-decoder=mp2float"' >> module-lite.sh
+          echo 'export COMMON_FF_CFG_FLAGS="$COMMON_FF_CFG_FLAGS --enable-decoder=ac3 --enable-decoder=ac3_fixed --enable-decoder=eac3"' >> module-lite.sh
+          echo 'export COMMON_FF_CFG_FLAGS="$COMMON_FF_CFG_FLAGS --enable-decoder=dca"' >> module-lite.sh
+          echo 'export COMMON_FF_CFG_FLAGS="$COMMON_FF_CFG_FLAGS --enable-decoder=pcm_s16be --enable-decoder=pcm_s24be"' >> module-lite.sh
+          echo 'export COMMON_FF_CFG_FLAGS="$COMMON_FF_CFG_FLAGS --enable-parser=mpegaudio --enable-parser=ac3 --enable-parser=dca"' >> module-lite.sh
+          echo 'export COMMON_FF_CFG_FLAGS="$COMMON_FF_CFG_FLAGS --enable-demuxer=ac3 --enable-demuxer=eac3 --enable-demuxer=dts"' >> module-lite.sh
           ln -sf module-lite.sh module.sh
-          echo "=== tail module-lite.sh ==="; tail -14 module-lite.sh
+          echo "=== tail module-lite.sh ==="
+          tail -14 module-lite.sh
 
-      - name: Compile FFmpeg (armv7a) -> libijkffmpeg.so
+      - name: Compile FFmpeg armv7a
         run: |
           cd ijk/android/contrib
           ./compile-ffmpeg.sh armv7a
 
-      - name: Compile ijkplayer JNI (armv7a) [best effort]
+      - name: Compile ijkplayer JNI armv7a (best effort)
         continue-on-error: true
         run: |
           cd ijk/android
@@ -59,24 +58,20 @@ EOF
       - name: Collect .so
         run: |
           mkdir -p out
-          find ijk -name 'libijk*.so' -path '*armeabi-v7a*' -print -exec cp -f {} out/ \; || true
-          find ijk -name 'libijkffmpeg.so' -print -exec cp -f {} out/ \; || true
-          echo "=== collected ==="; ls -la out
+          find ijk -name 'libijk*.so' -path '*armeabi-v7a*' -exec cp -f {} out/ \; || true
+          find ijk -name 'libijkffmpeg.so' -exec cp -f {} out/ \; || true
+          echo "=== collected ==="
+          ls -la out
 
-      - name: Verify MP2/AC3 are compiled in
+      - name: Verify MP2/AC3/EAC3 compiled in
         run: |
-          python3 - <<'PY'
-          import re,sys
-          d=open('out/libijkffmpeg.so','rb').read()
-          runs=re.findall(rb'[\x20-\x7e]{8,}',d)
-          cfg=max((r.decode() for r in runs if b'-decoder=' in r), key=len, default='')
-          decs=sorted(set(re.findall(r"--enable-decoder='?([a-z0-9_*]+)",cfg)))
-          print("decoders:",decs)
-          need={'mp2','ac3','eac3'}
-          miss=need-set(decs)
-          print("MISSING" if miss else "OK", miss or "mp2/ac3/eac3 present")
-          sys.exit(1 if miss else 0)
-          PY
+          grep -aoE 'enable-decoder=[a-z0-9_*]+' out/libijkffmpeg.so | sort -u > decs.txt
+          echo "=== decoders found in libijkffmpeg.so ==="
+          cat decs.txt
+          for d in mp2 ac3 eac3; do
+            grep -qx "enable-decoder=$d" decs.txt || { echo "MISSING $d"; exit 1; }
+          done
+          echo "OK: mp2/ac3/eac3 present"
 
       - name: Upload
         uses: actions/upload-artifact@v4
