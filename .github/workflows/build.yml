@@ -18,6 +18,7 @@ jobs:
           unzip -q android-ndk-r14b-linux-x86_64.zip
           echo "ANDROID_NDK=$HOME/android-ndk-r14b" >> $GITHUB_ENV
           echo "ANDROID_NDK_HOME=$HOME/android-ndk-r14b" >> $GITHUB_ENV
+          echo "ANDROID_NDK_ROOT=$HOME/android-ndk-r14b" >> $GITHUB_ENV
           echo "$HOME/android-ndk-r14b" >> $GITHUB_PATH
 
       - name: Clone ijkplayer k0.8.8
