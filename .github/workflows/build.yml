@@ -1,0 +1,86 @@
+name: build
+on:
+  workflow_dispatch:
+jobs:
+  build:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 90
+    steps:
+      - name: Host deps
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y git wget unzip yasm nasm pkg-config build-essential python3
+
+      - name: Download NDK r17c (last with gcc + make-standalone-toolchain)
+        run: |
+          cd $HOME
+          wget -q https://dl.google.com/android/repository/android-ndk-r17c-linux-x86_64.zip
+          unzip -q android-ndk-r17c-linux-x86_64.zip
+          echo "ANDROID_NDK=$HOME/android-ndk-r17c" >> $GITHUB_ENV
+          echo "ANDROID_NDK_HOME=$HOME/android-ndk-r17c" >> $GITHUB_ENV
+          echo "$HOME/android-ndk-r17c" >> $GITHUB_PATH
+
+      - name: Clone ijkplayer k0.8.8
+        run: git clone --depth 1 --branch k0.8.8 https://github.com/bilibili/ijkplayer.git ijk
+
+      - name: init-android (fetch FFmpeg n3.4 etc.)
+        run: |
+          cd ijk
+          ./init-android.sh
+
+      - name: Patch module for full audio codecs (MP1/MP2/AC3/EAC3/DTS)
+        run: |
+          cd ijk/config
+          cat >> module-lite.sh <<'EOF'
+
+# --- CINE TV: full audio codecs ---
+export COMMON_FF_CFG_FLAGS="$COMMON_FF_CFG_FLAGS --enable-decoder=mp1 --enable-decoder=mp1float"
+export COMMON_FF_CFG_FLAGS="$COMMON_FF_CFG_FLAGS --enable-decoder=mp2 --enable-decoder=mp2float"
+export COMMON_FF_CFG_FLAGS="$COMMON_FF_CFG_FLAGS --enable-decoder=ac3 --enable-decoder=ac3_fixed --enable-decoder=eac3"
+export COMMON_FF_CFG_FLAGS="$COMMON_FF_CFG_FLAGS --enable-decoder=dca"
+export COMMON_FF_CFG_FLAGS="$COMMON_FF_CFG_FLAGS --enable-decoder=pcm_s16be --enable-decoder=pcm_s24be"
+export COMMON_FF_CFG_FLAGS="$COMMON_FF_CFG_FLAGS --enable-parser=mpegaudio --enable-parser=ac3 --enable-parser=dca"
+export COMMON_FF_CFG_FLAGS="$COMMON_FF_CFG_FLAGS --enable-demuxer=ac3 --enable-demuxer=eac3 --enable-demuxer=dts"
+EOF
+          ln -sf module-lite.sh module.sh
+          echo "=== tail module-lite.sh ==="; tail -14 module-lite.sh
+
+      - name: Compile FFmpeg (armv7a) -> libijkffmpeg.so
+        run: |
+          cd ijk/android/contrib
+          ./compile-ffmpeg.sh armv7a
+
+      - name: Compile ijkplayer JNI (armv7a) [best effort]
+        continue-on-error: true
+        run: |
+          cd ijk/android
+          ./compile-ijk.sh armv7a
+
+      - name: Collect .so
+        run: |
+          mkdir -p out
+          find ijk -name 'libijk*.so' -path '*armeabi-v7a*' -print -exec cp -f {} out/ \; || true
+          find ijk -name 'libijkffmpeg.so' -print -exec cp -f {} out/ \; || true
+          echo "=== collected ==="; ls -la out
+
+      - name: Verify MP2/AC3 are compiled in
+        run: |
+          python3 - <<'PY'
+          import re,sys
+          d=open('out/libijkffmpeg.so','rb').read()
+          runs=re.findall(rb'[\x20-\x7e]{8,}',d)
+          cfg=max((r.decode() for r in runs if b'-decoder=' in r), key=len, default='')
+          decs=sorted(set(re.findall(r"--enable-decoder='?([a-z0-9_*]+)",cfg)))
+          print("decoders:",decs)
+          need={'mp2','ac3','eac3'}
+          miss=need-set(decs)
+          print("MISSING" if miss else "OK", miss or "mp2/ac3/eac3 present")
+          sys.exit(1 if miss else 0)
+          PY
+
+      - name: Upload
+        uses: actions/upload-artifact@v4
+        with:
+          name: ijk-armv7a-fullcodec
+          path: out/*.so
+          if-no-files-found: error
