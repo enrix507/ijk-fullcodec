@@ -41,6 +41,11 @@ jobs:
           echo 'export COMMON_FF_CFG_FLAGS="$COMMON_FF_CFG_FLAGS --enable-decoder=pcm_s16be --enable-decoder=pcm_s24be"' >> module-lite.sh
           echo 'export COMMON_FF_CFG_FLAGS="$COMMON_FF_CFG_FLAGS --enable-parser=mpegaudio --enable-parser=ac3 --enable-parser=dca"' >> module-lite.sh
           echo 'export COMMON_FF_CFG_FLAGS="$COMMON_FF_CFG_FLAGS --enable-demuxer=ac3 --enable-demuxer=eac3 --enable-demuxer=dts"' >> module-lite.sh
+          echo '# CINE TV: VOD containers (mkv/webm/avi/wmv/ogg) + sus codecs (DivX/Xvid, vorbis, opus, wmv)' >> module-lite.sh
+          echo 'export COMMON_FF_CFG_FLAGS="$COMMON_FF_CFG_FLAGS --enable-demuxer=matroska --enable-demuxer=webm_dash_manifest --enable-demuxer=avi --enable-demuxer=asf --enable-demuxer=wav --enable-demuxer=ogg --enable-demuxer=m4v"' >> module-lite.sh
+          echo 'export COMMON_FF_CFG_FLAGS="$COMMON_FF_CFG_FLAGS --enable-decoder=mpeg4 --enable-decoder=msmpeg4v1 --enable-decoder=msmpeg4v2 --enable-decoder=msmpeg4v3 --enable-decoder=mpeg2video --enable-decoder=mjpeg"' >> module-lite.sh
+          echo 'export COMMON_FF_CFG_FLAGS="$COMMON_FF_CFG_FLAGS --enable-decoder=vorbis --enable-decoder=opus --enable-decoder=wmav2 --enable-decoder=wmapro --enable-decoder=wmv1 --enable-decoder=wmv2 --enable-decoder=wmv3 --enable-decoder=vc1"' >> module-lite.sh
+          echo 'export COMMON_FF_CFG_FLAGS="$COMMON_FF_CFG_FLAGS --enable-parser=mpeg4video --enable-parser=mpegvideo --enable-parser=vorbis --enable-parser=opus --enable-parser=vp9"' >> module-lite.sh
           ln -sf module-lite.sh module.sh
           echo "=== tail module-lite.sh ==="
           tail -14 module-lite.sh
