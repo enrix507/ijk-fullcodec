@@ -46,9 +46,14 @@ jobs:
           echo 'export COMMON_FF_CFG_FLAGS="$COMMON_FF_CFG_FLAGS --enable-decoder=mpeg4 --enable-decoder=msmpeg4v1 --enable-decoder=msmpeg4v2 --enable-decoder=msmpeg4v3 --enable-decoder=mpeg2video --enable-decoder=mjpeg"' >> module-lite.sh
           echo 'export COMMON_FF_CFG_FLAGS="$COMMON_FF_CFG_FLAGS --enable-decoder=vorbis --enable-decoder=opus --enable-decoder=wmav2 --enable-decoder=wmapro --enable-decoder=wmv1 --enable-decoder=wmv2 --enable-decoder=wmv3 --enable-decoder=vc1"' >> module-lite.sh
           echo 'export COMMON_FF_CFG_FLAGS="$COMMON_FF_CFG_FLAGS --enable-parser=mpeg4video --enable-parser=mpegvideo --enable-parser=vorbis --enable-parser=opus --enable-parser=vp9"' >> module-lite.sh
+          echo '# CINE TV: subtitulos de texto (embebidos en mkv/mp4 + SRT/VTT externo)' >> module-lite.sh
+          echo 'export COMMON_FF_CFG_FLAGS="$COMMON_FF_CFG_FLAGS --enable-decoder=subrip --enable-decoder=srt --enable-decoder=ssa --enable-decoder=ass --enable-decoder=webvtt --enable-decoder=movtext --enable-decoder=text --enable-decoder=dvbsub --enable-decoder=dvdsub --enable-decoder=xsub"' >> module-lite.sh
+          echo 'export COMMON_FF_CFG_FLAGS="$COMMON_FF_CFG_FLAGS --enable-encoder=ssa --enable-encoder=ass --enable-encoder=movtext --enable-encoder=subrip --enable-encoder=text --enable-encoder=webvtt"' >> module-lite.sh
+          echo 'export COMMON_FF_CFG_FLAGS="$COMMON_FF_CFG_FLAGS --enable-demuxer=srt --enable-demuxer=ass --enable-demuxer=webvtt --enable-demuxer=subviewer --enable-demuxer=microdvd --enable-demuxer=jacosub"' >> module-lite.sh
+          echo 'export COMMON_FF_CFG_FLAGS="$COMMON_FF_CFG_FLAGS --enable-muxer=ass --enable-muxer=srt --enable-muxer=webvtt"' >> module-lite.sh
           ln -sf module-lite.sh module.sh
           echo "=== tail module-lite.sh ==="
-          tail -14 module-lite.sh
+          tail -18 module-lite.sh
 
       - name: Compile FFmpeg armv7a
         run: |
@@ -69,15 +74,15 @@ jobs:
           echo "=== collected ==="
           ls -la out
 
-      - name: Verify MP2/AC3/EAC3 compiled in
+      - name: Verify audio + subtitle decoders compiled in
         run: |
           grep -aoE 'enable-decoder=[a-z0-9_*]+' out/libijkffmpeg.so | sort -u > decs.txt
           echo "=== decoders found in libijkffmpeg.so ==="
           cat decs.txt
-          for d in mp2 ac3 eac3; do
+          for d in mp2 ac3 eac3 subrip ass webvtt movtext; do
             grep -qx "enable-decoder=$d" decs.txt || { echo "MISSING $d"; exit 1; }
           done
-          echo "OK: mp2/ac3/eac3 present"
+          echo "OK: audio + subtitle decoders present"
 
       - name: Upload
         uses: actions/upload-artifact@v4
